@@ -1,25 +1,35 @@
-import sys
-import resource
-import pickle
+# sandbox_worker.py
+import sys, io, pickle, traceback, resource
+from contextlib import redirect_stdout, redirect_stderr
 
-# --- Set hard memory + CPU limits ---
-resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))  # 256MB memory
-resource.setrlimit(resource.RLIMIT_CPU, (5, 5))  # 5s CPU time
+# --- Hard limits -----------------------------------------------------------
+resource.setrlimit(resource.RLIMIT_AS,  (256 * 1024 * 1024,)*2)   # 256 MB
+resource.setrlimit(resource.RLIMIT_CPU, (5, 5))                   # 5 s CPU
+# --------------------------------------------------------------------------
 
-# --- Read input from parent process ---
-data = sys.stdin.buffer.read()
-payload = pickle.loads(data)
-code = payload['code']
-context = payload['context']
+# 1.  Read payload
+payload = pickle.loads(sys.stdin.buffer.read())
+code     = payload["code"]
+context  = payload["context"]
 
-# --- Run code and capture output ---
-stdout = []
+# 2.  Capture user stdout / stderr
+stdout_buf = io.StringIO()
+stderr_buf = io.StringIO()
+
 try:
-    exec(code, context)
-    output = context.get('result', 'Code executed successfully.')
-except Exception as e:
-    output = f"Exception: {e}"
+    with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
+        exec(code, context)                      # <-- user code runs here
+    # anything the user printed:
+    captured_out  = stdout_buf.getvalue()
+    captured_err  = stderr_buf.getvalue()
 
-# --- Write back context and output ---
-result = {'context': context, 'output': str(output)}
-sys.stdout.buffer.write(pickle.dumps(result))
+    # precedence: explicit `result` variable if they set one
+    output = context.get("result")
+    if output is None:                           # nothing in `result`
+        output = captured_out or captured_err or "Code executed successfully."
+
+except Exception:
+    output = traceback.format_exc()
+
+# 3.  Send back context + output
+pickle.dump({"context": context, "output": str(output)}, sys.stdout.buffer)
