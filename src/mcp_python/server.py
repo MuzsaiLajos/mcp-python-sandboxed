@@ -11,6 +11,7 @@ from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 import mcp.types as types
+import os
 
 class PythonREPLServer:
     def __init__(self):
@@ -92,9 +93,11 @@ class PythonREPLServer:
                 state = {k: v for k, v in self.global_namespace.items() if k != "__builtins__"}
                 input_data = pickle.dumps({'code': code, 'context': state})
 
+                worker_path = os.path.join(os.path.dirname(__file__), 'sandbox_worker.py')
+
                 try:
                     proc = subprocess.Popen(
-                        [sys.executable, 'sandbox_worker.py'],
+                        [sys.executable, worker_path],
                         stdin=subprocess.PIPE,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
