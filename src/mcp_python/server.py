@@ -116,7 +116,7 @@ class PythonREPLServer:
                 result = pickle.loads(out)
                 self.global_namespace.update(result.get('context', {}))
                 output = result.get('output', '')
-                return [types.TextContent(type="text", text=output)]
+                return [types.TextContent(type="text", text=f"Output: {output}")]
 
             except Exception:
                 return [types.TextContent(type="text", text=f"Error executing code:\n{traceback.format_exc()}")]
